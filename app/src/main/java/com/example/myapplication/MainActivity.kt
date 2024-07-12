@@ -1,5 +1,6 @@
 package com.example.myapplication
 
+//import AutoClickerAccessibilityService
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
@@ -49,10 +50,11 @@ class MainActivity : AppCompatActivity() {
         val intent = Intent(this, AutoClickerService::class.java).apply {
             action = "START"
         }
-        startService(intent)
+        startForegroundService(intent)
         isRunning = true
         updateButtonText()
     }
+
 
     private fun stopAutoClicker() {
         val intent = Intent(this, AutoClickerService::class.java).apply {

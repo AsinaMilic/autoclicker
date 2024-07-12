@@ -2,23 +2,40 @@ package com.example.myapplication
 
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
-import android.content.Intent
 import android.graphics.Path
 import android.view.accessibility.AccessibilityEvent
+import android.os.Handler
+import android.os.Looper
+import kotlinx.coroutines.*
 
 class AutoClickerAccessibilityService : AccessibilityService() {
+    private var isClicking = false
+    private var clickJob: Job? = null
 
     override fun onServiceConnected() {
-        // No need for broadcast receiver registration here
+        super.onServiceConnected()
+        startClicking()
     }
 
-    override fun onAccessibilityEvent(event: AccessibilityEvent?) {}
+    private fun startClicking() {
+        if (!isClicking) {
+            isClicking = true
+            clickJob = CoroutineScope(Dispatchers.Default).launch {
+                while (isActive) {
+                    performClick()
+                    delay(1000) // Klik svake sekunde
+                }
+            }
+        }
+    }
 
-    override fun onInterrupt() {}
+    private fun performClick() {
+        val displayMetrics = resources.displayMetrics
+        val centerX = displayMetrics.widthPixels / 2f
+        val centerY = displayMetrics.heightPixels / 2f
 
-    private fun performClick(x: Float, y: Float) {
         val path = Path().apply {
-            moveTo(x, y)
+            moveTo(centerX, centerY)
         }
 
         val gestureBuilder = GestureDescription.Builder().apply {
@@ -26,21 +43,32 @@ class AutoClickerAccessibilityService : AccessibilityService() {
         }
 
         val gesture = gestureBuilder.build()
-        dispatchGesture(gesture, null, null)
+        dispatchGesture(gesture, object : GestureResultCallback() {
+            override fun onCompleted(gestureDescription: GestureDescription?) {
+                super.onCompleted(gestureDescription)
+                // Klik je završen
+            }
+
+            override fun onCancelled(gestureDescription: GestureDescription?) {
+                super.onCancelled(gestureDescription)
+                // Klik je otkazan
+            }
+        }, null)
     }
 
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        intent?.let {
-            if (it.action == "PERFORM_CLICK") {
-                val x = it.getFloatExtra("x", 0f)
-                val y = it.getFloatExtra("y", 0f)
-                performClick(x, y)
-            }
-        }
-        return START_NOT_STICKY
+    override fun onAccessibilityEvent(event: AccessibilityEvent?) {}
+
+    override fun onInterrupt() {
+        stopClicking()
+    }
+
+    private fun stopClicking() {
+        isClicking = false
+        clickJob?.cancel()
     }
 
     override fun onDestroy() {
         super.onDestroy()
+        stopClicking()
     }
 }

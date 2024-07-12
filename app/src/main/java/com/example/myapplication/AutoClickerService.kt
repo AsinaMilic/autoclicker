@@ -6,7 +6,7 @@ import android.app.NotificationManager
 import android.app.Service
 import android.content.Context
 import android.content.Intent
-import android.content.pm.ServiceInfo
+
 import android.graphics.PixelFormat
 import android.os.Build
 import android.os.IBinder
@@ -33,21 +33,23 @@ class AutoClickerService : Service() {
         super.onCreate()
         windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
         createClickerView()
+        startForeground(NOTIFICATION_ID, createNotification())
     }
 
     @RequiresApi(Build.VERSION_CODES.Q)
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
-            "START" -> {
-                startForeground(NOTIFICATION_ID, createNotification(), ServiceInfo.FOREGROUND_SERVICE_TYPE_MANIFEST)
-                startClicking()
-            }
+            "START" -> startClicking()
             "STOP" -> stopClicking()
         }
-        return START_NOT_STICKY
+        return START_STICKY
     }
 
     private fun createClickerView() {
+        val displayMetrics = resources.displayMetrics
+        val screenWidth = displayMetrics.widthPixels
+        val screenHeight = displayMetrics.heightPixels
+
         val params = WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.WRAP_CONTENT,
@@ -56,8 +58,8 @@ class AutoClickerService : Service() {
             PixelFormat.TRANSLUCENT
         )
         params.gravity = Gravity.TOP or Gravity.START
-        params.x = 0
-        params.y = 0
+        params.x = screenWidth / 2
+        params.y = screenHeight / 2
 
         clickerView = ImageView(this).apply {
             setImageResource(android.R.drawable.ic_menu_mylocation)
@@ -82,28 +84,20 @@ class AutoClickerService : Service() {
     private fun stopClicking() {
         isClicking = false
         clickJob?.cancel()
-        stopForeground(true)
-        stopSelf()
+        //stopForeground(true)
+        //stopSelf()
     }
 
     private suspend fun performClick() {
         withContext(Dispatchers.Main) {
-            val location = IntArray(2)
-            clickerView.getLocationOnScreen(location)
-            val x = location[0].toFloat()
-            val y = location[1].toFloat()
-
-            // Send click coordinates to AccessibilityService
-            val intent = Intent("PERFORM_CLICK").apply {
-                putExtra("x", x)
-                putExtra("y", y)
-            }
-            sendBroadcast(intent)
-
             // Visual effect of the click
             clickerView.animate().scaleX(1.5f).scaleY(1.5f).setDuration(100).withEndAction {
                 clickerView.animate().scaleX(1f).scaleY(1f).setDuration(100).start()
             }.start()
+
+            // Trigger the actual click
+            val intent = Intent("PERFORM_CLICK")
+            sendBroadcast(intent)
         }
     }
 
