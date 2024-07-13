@@ -8,6 +8,7 @@ import android.media.projection.MediaProjectionManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Environment
 import android.provider.Settings
 import android.widget.Button
 import android.widget.Toast
@@ -37,6 +38,7 @@ class MainActivity : AppCompatActivity() {
         isRunning = isServiceRunning(AutoClickerService::class.java)
         updateButtonText()
         requestStoragePermission()
+        requestManageExternalStoragePermission()
     }
 
     private fun toggleAutoClicker() {
@@ -67,6 +69,17 @@ class MainActivity : AppCompatActivity() {
 
     private fun updateButtonText() {
         findViewById<Button>(R.id.start_button).text = if (isRunning) "Stop Auto-clicker" else "Start Auto-clicker"
+    }
+
+    private fun requestManageExternalStoragePermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            if (!Environment.isExternalStorageManager()) {
+                val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION)
+                val uri = Uri.fromParts("package", packageName, null)
+                intent.data = uri
+                startActivity(intent)
+            }
+        }
     }
 
     private fun requestOverlayPermission() {
