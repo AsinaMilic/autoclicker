@@ -11,7 +11,7 @@ class GroqApiClient(private val apiKey: String) {
 
     fun sendPrompt(prompt: String, callback: (String?) -> Unit) {
         val json = JSONObject()
-        json.put("model", "gemma2-9b-it")
+        json.put("model", "llama3-70b-8192")
         val messages = JSONArray()
         val message = JSONObject()
         message.put("role", "user")

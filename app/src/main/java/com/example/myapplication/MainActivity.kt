@@ -2,16 +2,24 @@
 package com.example.myapplication
 
 import android.app.Activity
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
+import android.graphics.PixelFormat
 import android.media.projection.MediaProjectionManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Environment
+import android.os.Handler
+import android.os.Looper
 import android.provider.Settings
+import android.view.View
+import android.view.WindowManager
 import android.widget.Button
 import android.widget.Toast
+import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
 
 class MainActivity : AppCompatActivity() {
@@ -19,11 +27,16 @@ class MainActivity : AppCompatActivity() {
     private var isRunning = false
     private val REQUEST_MEDIA_PROJECTION = 1
     private val OVERLAY_PERMISSION_REQUEST_CODE = 2
+    private var clickIndicatorView: View? = null
 
+
+    @RequiresApi(Build.VERSION_CODES.TIRAMISU)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
+        registerReceiver(clickIndicatorReceiver, IntentFilter("SHOW_CLICK_INDICATOR"), Context.RECEIVER_NOT_EXPORTED)
+        
         val startButton = findViewById<Button>(R.id.start_button)
         startButton.setOnClickListener {
             if (!Settings.canDrawOverlays(this)) {
@@ -39,6 +52,7 @@ class MainActivity : AppCompatActivity() {
         updateButtonText()
         requestStoragePermission()
         requestManageExternalStoragePermission()
+
     }
 
     private fun toggleAutoClicker() {
@@ -69,6 +83,44 @@ class MainActivity : AppCompatActivity() {
 
     private fun updateButtonText() {
         findViewById<Button>(R.id.start_button).text = if (isRunning) "Stop Auto-clicker" else "Start Auto-clicker"
+    }
+
+    private val clickIndicatorReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == "SHOW_CLICK_INDICATOR") {
+                val x = intent.getFloatExtra("CLICK_X", 0f)
+                val y = intent.getFloatExtra("CLICK_Y", 0f)
+                showClickIndicatorOnScreen(x, y)
+            }
+        }
+    }
+
+    private fun showClickIndicatorOnScreen(x: Float, y: Float) {
+        if (clickIndicatorView == null) {
+            clickIndicatorView = View(this).apply {
+                setBackgroundResource(R.drawable.click_indicator)
+            }
+        }
+
+        val size = 48 // Size of the indicator in pixels
+        val params = WindowManager.LayoutParams(
+            size,
+            size,
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                    WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
+            PixelFormat.TRANSLUCENT
+        )
+        params.x = (x - size / 2).toInt()
+        params.y = (y - size / 2).toInt()
+
+        val windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
+        windowManager.addView(clickIndicatorView, params)
+
+        // Remove the indicator after a short time
+        Handler(Looper.getMainLooper()).postDelayed({
+            windowManager.removeView(clickIndicatorView)
+        }, 10000) // 300ms = 0.3 seconds
     }
 
     private fun requestManageExternalStoragePermission() {
@@ -128,5 +180,10 @@ class MainActivity : AppCompatActivity() {
                 Toast.makeText(this, "Overlay permission denied", Toast.LENGTH_SHORT).show()
             }
         }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        unregisterReceiver(clickIndicatorReceiver)
     }
 }

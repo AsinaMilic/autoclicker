@@ -88,7 +88,7 @@ class ScreenshotDetectorService : Service() {
                         val formattedAnswers = answers.mapIndexed { index, answer ->
                             "${index + 1}) ${answer.trim()}"
                         }
-                        val formattedText = "$question ${formattedAnswers.joinToString("\n")} .Odgovori samo brojkom tačnog odgovora!".replace("\n", " ")
+                        val formattedText = "$question ${formattedAnswers.joinToString("\n")} Odgovori samo i samo jednom brojkom tačnog odgovora!".replace("\n", " ")
                         Log.d("OCR", "Formatted Text: $formattedText")
 
                         CoroutineScope(Dispatchers.IO).launch {
@@ -114,11 +114,19 @@ class ScreenshotDetectorService : Service() {
     }
 
     private fun processGroqResponse(response: String) {
-        // Ovde dodajte logiku za obradu odgovora od Groq API-ja
-        // Na primer, možete parsirati odgovor i pokrenuti odgovarajuću akciju
-        // baziranu na sadržaju odgovora
         Log.d("Groq API", "Processing response: $response")
-        // Ovde možete dodati dodatnu logiku za obradu odgovora
+
+        val answerNumber = response.trim().toIntOrNull()
+
+        if (answerNumber != null && answerNumber in 1..4) {
+            val intent = Intent(this, AutoClickerAccessibilityService::class.java).apply {
+                action = "PERFORM_CLICK"
+                putExtra("ANSWER_NUMBER", answerNumber)
+            }
+            startService(intent)
+        } else {
+            Log.e("Groq API", "Invalid response: $response")
+        }
     }
 
     override fun onDestroy() {
