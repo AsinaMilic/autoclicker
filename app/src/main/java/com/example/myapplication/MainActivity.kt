@@ -1,11 +1,12 @@
+// MainActivity.kt
 package com.example.myapplication
 
-//import AutoClickerAccessibilityService
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.media.projection.MediaProjectionManager
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.widget.Button
@@ -33,9 +34,9 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // Check if the service is already running
         isRunning = isServiceRunning(AutoClickerService::class.java)
         updateButtonText()
+        requestStoragePermission()
     }
 
     private fun toggleAutoClicker() {
@@ -54,7 +55,6 @@ class MainActivity : AppCompatActivity() {
         isRunning = true
         updateButtonText()
     }
-
 
     private fun stopAutoClicker() {
         val intent = Intent(this, AutoClickerService::class.java).apply {
@@ -93,6 +93,12 @@ class MainActivity : AppCompatActivity() {
             }
         }
         return false
+    }
+
+    private fun requestStoragePermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            requestPermissions(arrayOf(android.Manifest.permission.READ_EXTERNAL_STORAGE), 100)
+        }
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {

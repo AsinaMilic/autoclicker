@@ -1,32 +1,19 @@
+// AutoClickerAccessibilityService.kt
 package com.example.myapplication
 
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
+import android.content.Intent
 import android.graphics.Path
 import android.view.accessibility.AccessibilityEvent
-import android.os.Handler
-import android.os.Looper
-import kotlinx.coroutines.*
 
 class AutoClickerAccessibilityService : AccessibilityService() {
-    private var isClicking = false
-    private var clickJob: Job? = null
 
-    override fun onServiceConnected() {
-        super.onServiceConnected()
-        startClicking()
-    }
-
-    private fun startClicking() {
-        if (!isClicking) {
-            isClicking = true
-            clickJob = CoroutineScope(Dispatchers.Default).launch {
-                while (isActive) {
-                    performClick()
-                    delay(1000) // Klik svake sekunde
-                }
-            }
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action == "PERFORM_CLICK") {
+            performClick()
         }
+        return START_NOT_STICKY
     }
 
     private fun performClick() {
@@ -43,32 +30,12 @@ class AutoClickerAccessibilityService : AccessibilityService() {
         }
 
         val gesture = gestureBuilder.build()
-        dispatchGesture(gesture, object : GestureResultCallback() {
-            override fun onCompleted(gestureDescription: GestureDescription?) {
-                super.onCompleted(gestureDescription)
-                // Klik je završen
-            }
-
-            override fun onCancelled(gestureDescription: GestureDescription?) {
-                super.onCancelled(gestureDescription)
-                // Klik je otkazan
-            }
-        }, null)
+        dispatchGesture(gesture, null, null)
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {}
 
-    override fun onInterrupt() {
-        stopClicking()
-    }
+    override fun onInterrupt() {}
 
-    private fun stopClicking() {
-        isClicking = false
-        clickJob?.cancel()
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        stopClicking()
-    }
+    override fun onServiceConnected() {}
 }
