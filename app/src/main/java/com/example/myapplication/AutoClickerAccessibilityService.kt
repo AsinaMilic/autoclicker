@@ -56,25 +56,21 @@ class AutoClickerAccessibilityService : AccessibilityService() {
 
     private fun calculateClickPosition(answerNumber: Int): Pair<Float, Float> {
         val displayMetrics = resources.displayMetrics
-        val screenWidth = displayMetrics.widthPixels.toFloat()
         val screenHeight = displayMetrics.heightPixels.toFloat()
 
-        // Definišite y-offset
-        val yOffset = screenHeight * (0f) // Pomeranje y-koordinate za 5% visine ekrana
+        // Početak prvog dugmeta
+        val startYPercentage = 0.6f // Y koordinata prvog dugmeta kao 55% visine ekrana
+        val startY = screenHeight * startYPercentage
 
-        // Pozicije odgovora bazirane na slici
-        val topMargin = screenHeight * 0.55f // Početak prvog odgovora
-        val bottomMargin = screenHeight * 0.85f // Kraj poslednjeg odgovora
-        val height = bottomMargin - topMargin
+        // Razmak između dugmadi
+        val yOffsetPercentage = 0.1f // Razmak između dugmadi kao 5% visine ekrana
+        val yOffset = screenHeight * yOffsetPercentage
 
-        val x = screenWidth * 0.5f // Klik u sredini po širini
-        val y = when(answerNumber) {
-            1 -> topMargin + height * 0.125f + yOffset
-            2 -> topMargin + height * 0.375f + yOffset
-            3 -> topMargin + height * 0.625f + yOffset
-            4 -> topMargin + height * 0.875f + yOffset
-            else -> topMargin + height * 0.5f + yOffset // Sredina ako je neispravan broj
-        }
+        // Klik na odgovarajuću y-koordinatu na osnovu answerNumber
+        val y = startY + (answerNumber - 1) * yOffset
+
+        // X koordinata može biti u sredini ekrana ili gde je potrebno
+        val x = displayMetrics.widthPixels.toFloat() / 2
 
         Log.d("AutoClickerService", "Calculated click position: x=$x, y=$y")
         return Pair(x, y)
@@ -111,14 +107,10 @@ class AutoClickerAccessibilityService : AccessibilityService() {
         clickIndicatorView.post {
             val params = clickIndicatorView.layoutParams as WindowManager.LayoutParams
 
-            // Log trenutnih parametara pre ažuriranja
-            Log.d("AutoClickerService", "Current clickIndicatorView position: x=${params.x}, y=${params.y}")
+            // Postavi indikator tačno na tačke (x, y)
+            params.x = x.toInt()
+            params.y = y.toInt()
 
-            // Centriraj indikator klika na tačku (x, y)
-            params.x = x.toInt() - clickIndicatorView.width / 2
-            params.y = y.toInt() - clickIndicatorView.height / 2
-
-            // Log novih parametara nakon ažuriranja
             Log.d("AutoClickerService", "Updated clickIndicatorView position: x=${params.x}, y=${params.y}")
 
             windowManager.updateViewLayout(clickIndicatorView, params)
@@ -127,9 +119,10 @@ class AutoClickerAccessibilityService : AccessibilityService() {
             handler.postDelayed({
                 clickIndicatorView.visibility = View.GONE
                 Log.d("AutoClickerService", "Click indicator hidden")
-            }, 300) // 300ms = 0.3 seconds
+            }, 3000) // 300ms = 0.3 seconds
         }
     }
+
 
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {

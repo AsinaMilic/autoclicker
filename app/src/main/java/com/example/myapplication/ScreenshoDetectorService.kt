@@ -88,7 +88,10 @@ class ScreenshotDetectorService : Service() {
                         val formattedAnswers = answers.mapIndexed { index, answer ->
                             "${index + 1}) ${answer.trim()}"
                         }
-                        val formattedText = "$question ${formattedAnswers.joinToString("\n")} Odgovori samo i samo jednom brojkom tačnog odgovora!".replace("\n", " ")
+                        val formattedText = ("Kviz se sastoji od jednog pitanja i 4 odgovora, ignorisi sve ostalo sto mislis da nije deo kviza. Pitanje: " +
+                                "$question ${formattedAnswers.joinToString("\n")}     Odgovori samo brojkom tačnog odgovora!")
+                            .replace("\n", " ")
+
                         Log.d("OCR", "Formatted Text: $formattedText")
 
                         CoroutineScope(Dispatchers.IO).launch {
@@ -116,9 +119,14 @@ class ScreenshotDetectorService : Service() {
     private fun processGroqResponse(response: String) {
         Log.d("Groq API", "Processing response: $response")
 
-        val answerNumber = response.trim().toIntOrNull()
+        // Koristi regularni izraz za pronalaženje prve cifre između 1 i 4
+        val regex = Regex("[1-4]")
+        val match = regex.find(response.trim())
 
-        if (answerNumber != null && answerNumber in 1..4) {
+        // Ako je pronađena cifra, koristi je kao answerNumber
+        val answerNumber = match?.value?.toIntOrNull()
+
+        if (answerNumber != null) {
             val intent = Intent(this, AutoClickerAccessibilityService::class.java).apply {
                 action = "PERFORM_CLICK"
                 putExtra("ANSWER_NUMBER", answerNumber)
@@ -128,6 +136,7 @@ class ScreenshotDetectorService : Service() {
             Log.e("Groq API", "Invalid response: $response")
         }
     }
+
 
     override fun onDestroy() {
         observer?.stopWatching()
