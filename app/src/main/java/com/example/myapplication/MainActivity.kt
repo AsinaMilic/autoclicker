@@ -1,4 +1,3 @@
-// MainActivity.kt
 package com.example.myapplication
 
 import android.app.Activity
@@ -6,8 +5,8 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.PackageManager
 import android.graphics.PixelFormat
-import android.media.projection.MediaProjectionManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -21,14 +20,14 @@ import android.widget.Button
 import android.widget.Toast
 import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 
 class MainActivity : AppCompatActivity() {
 
     private var isRunning = false
-    private val REQUEST_MEDIA_PROJECTION = 1
     private val OVERLAY_PERMISSION_REQUEST_CODE = 2
     private var clickIndicatorView: View? = null
-
 
     @RequiresApi(Build.VERSION_CODES.TIRAMISU)
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -36,7 +35,7 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_main)
 
         registerReceiver(clickIndicatorReceiver, IntentFilter("SHOW_CLICK_INDICATOR"), Context.RECEIVER_NOT_EXPORTED)
-        
+
         val startButton = findViewById<Button>(R.id.start_button)
         startButton.setOnClickListener {
             if (!Settings.canDrawOverlays(this)) {
@@ -52,7 +51,6 @@ class MainActivity : AppCompatActivity() {
         updateButtonText()
         requestStoragePermission()
         requestManageExternalStoragePermission()
-
     }
 
     private fun toggleAutoClicker() {
@@ -120,7 +118,7 @@ class MainActivity : AppCompatActivity() {
         // Remove the indicator after a short time
         Handler(Looper.getMainLooper()).postDelayed({
             windowManager.removeView(clickIndicatorView)
-        }, 10000) // 300ms = 0.3 seconds
+        }, 300) // 300ms = 0.3 seconds
     }
 
     private fun requestManageExternalStoragePermission() {
@@ -162,19 +160,14 @@ class MainActivity : AppCompatActivity() {
 
     private fun requestStoragePermission() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            requestPermissions(arrayOf(android.Manifest.permission.READ_EXTERNAL_STORAGE), 100)
+            ActivityCompat.requestPermissions(this, arrayOf(android.Manifest.permission.READ_EXTERNAL_STORAGE), 100)
         }
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
-        when (requestCode) {
-            REQUEST_MEDIA_PROJECTION -> if (resultCode == Activity.RESULT_OK && data != null) {
-                val projectionIntent = data
-                val projectionManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
-                val mediaProjection = projectionManager.getMediaProjection(resultCode, projectionIntent)
-            }
-            OVERLAY_PERMISSION_REQUEST_CODE -> if (Settings.canDrawOverlays(this)) {
+        if (requestCode == OVERLAY_PERMISSION_REQUEST_CODE) {
+            if (Settings.canDrawOverlays(this)) {
                 Toast.makeText(this, "Overlay permission granted", Toast.LENGTH_SHORT).show()
             } else {
                 Toast.makeText(this, "Overlay permission denied", Toast.LENGTH_SHORT).show()

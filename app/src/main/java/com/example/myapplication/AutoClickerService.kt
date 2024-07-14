@@ -1,15 +1,17 @@
 // AutoClickerService.kt
 package com.example.myapplication
 
+import android.app.Service
+import android.content.Intent
+import android.os.IBinder
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
-import android.app.Service
 import android.content.Context
-import android.content.Intent
 import android.os.Build
-import android.os.IBinder
 import androidx.core.app.NotificationCompat
+//import android.app.ServiceInfo // Add this import
+import android.content.pm.ServiceInfo
 
 class AutoClickerService : Service() {
 
@@ -20,7 +22,11 @@ class AutoClickerService : Service() {
 
     override fun onCreate() {
         super.onCreate()
-        startForeground(NOTIFICATION_ID, createNotification())
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            startForeground(NOTIFICATION_ID, createNotification(), ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION)
+        } else {
+            startForeground(NOTIFICATION_ID, createNotification())
+        }
         startService(Intent(this, ScreenshotDetectorService::class.java))
     }
 
