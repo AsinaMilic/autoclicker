@@ -7,6 +7,8 @@ import android.content.Intent
 import android.graphics.Path
 import android.os.Handler
 import android.os.Looper
+import android.os.VibrationEffect
+import android.os.Vibrator
 import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
@@ -33,7 +35,7 @@ class AutoClickerAccessibilityService : AccessibilityService() {
             Log.d("AutoClickerService", "Received click request for answer: $answerNumber")
             if (answerNumber in 1..4) {
                 val (x, y) = calculateClickPosition(answerNumber)
-                performClickAt(x, y)
+                performClickAt(x, y, answerNumber)
             }
         }
         return START_NOT_STICKY
@@ -77,7 +79,7 @@ class AutoClickerAccessibilityService : AccessibilityService() {
     }
 
 
-    private fun performClickAt(x: Float, y: Float) {
+    private fun performClickAt(x: Float, y: Float, answerNumber: Int) {
         val path = Path().apply {
             moveTo(x, y)
         }
@@ -91,12 +93,28 @@ class AutoClickerAccessibilityService : AccessibilityService() {
             override fun onCompleted(gestureDescription: GestureDescription?) {
                 Log.d("AutoClickerService", "Click performed at x=$x, y=$y")
                 showClickIndicator(x, y)
+                vibrateForAnswer(answerNumber)
             }
 
             override fun onCancelled(gestureDescription: GestureDescription?) {
                 Log.e("AutoClickerService", "Click cancelled")
             }
         }, null)
+    }
+
+    private fun vibrateForAnswer(answerNumber: Int) {
+        val vibrator = getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+        if (vibrator.hasVibrator()) {
+            val vibrationDuration = 200L // Duration of each vibration in milliseconds
+            val pauseDuration = 200L // Duration of pause between vibrations
+
+            val pattern = LongArray(answerNumber * 2) { index ->
+                if (index % 2 == 0) vibrationDuration else pauseDuration
+            }
+
+            val vibrationEffect = VibrationEffect.createWaveform(pattern, -1) // -1 means don't repeat
+            vibrator.vibrate(vibrationEffect)
+        }
     }
 
     private fun showClickIndicator(x: Float, y: Float) {

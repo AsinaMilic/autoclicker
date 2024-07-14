@@ -88,9 +88,10 @@ class ScreenshotDetectorService : Service() {
                         val formattedAnswers = answers.mapIndexed { index, answer ->
                             "${index + 1}) ${answer.trim()}"
                         }
-                        val formattedText = ("Kviz se sastoji od jednog pitanja i 4 odgovora, ignorisi sve ostalo sto mislis da nije deo kviza. Pitanje: " +
+                        val formattedText = ("Kviz ima jedno pitanje i 4 odgovora, ignorisi sve ostalo sto mislis da nije pitanje i moguci odgovor. Pitanje: " +
                                 "$question ${formattedAnswers.joinToString("\n")}     Odgovori samo brojkom tačnog odgovora!")
-                            .replace("\n", " ")
+                            .replace("\n", " ").replace("mts", "").replace("do kraja", "")
+                            .replace("Ne odgovaraj odmah, sačekajte da se odgovori uokvire belom bojom odnosno postanu aktivni.", "")
 
                         Log.d("OCR", "Formatted Text: $formattedText")
 
