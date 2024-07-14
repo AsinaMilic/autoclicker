@@ -1,6 +1,5 @@
 package com.example.myapplication
 
-import GroqApiClient
 import android.app.Service
 import android.content.Context
 import android.content.Intent
@@ -20,6 +19,12 @@ import kotlinx.coroutines.launch
 import java.io.File
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
+import okhttp3.*
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.RequestBody.Companion.toRequestBody
+import org.json.JSONObject
+import org.json.JSONArray
+import java.io.IOException
 
 class ScreenshotDetectorService : Service() {
     private var observer: FileObserver? = null
@@ -39,7 +44,6 @@ class ScreenshotDetectorService : Service() {
         object : FileObserver(screenshotsDir, FileObserver.CREATE) {
             override fun onEvent(event: Int, path: String?) {
                 if (event == FileObserver.CREATE && path != null) {
-                    // Uklanjanje `.pending-` prefiksa ako postoji
                     val cleanedPath = path.substringAfter("-").substringAfter("-")
                     Log.d("ScreenshotDetectorService", "Detected file: $cleanedPath")
 
@@ -95,17 +99,17 @@ class ScreenshotDetectorService : Service() {
                         Log.d("OCR", "Formatted Text: $formattedText")
 
                         CoroutineScope(Dispatchers.IO).launch {
-                            val apiKey = "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"
-                            val groqApiClient = GroqApiClient(apiKey)
-                            groqApiClient.sendPrompt(formattedText) { result ->
+                            val apiKey = "sk-proj-nL79lVT8traX5QJ4pF6yT3BlbkFJrIJvNyeMB43INwliMwBo"
+                            val openAiApiClient = OpenAiApiClient(apiKey)
+                            openAiApiClient.sendPrompt(formattedText) { result ->
                                 result?.let {
-                                    Log.d("Groq API", "Response: $it")
-                                    processGroqResponse(it)
-                                } ?: Log.e("Groq API", "Neuspjelo dobivanje odgovora od Groq API-ja")
+                                    Log.d("OpenAI API", "Response: $it")
+                                    processOpenAiResponse(it)
+                                } ?: Log.e("OpenAI API", "Failed to get response from OpenAI API")
                             }
                         }
                     } else {
-                        Log.e("OCR", "Neočekivani format teksta")
+                        Log.e("OCR", "Unexpected text format")
                     }
                 }
                 .addOnFailureListener { e ->
@@ -116,14 +120,14 @@ class ScreenshotDetectorService : Service() {
         }
     }
 
-    private fun processGroqResponse(response: String) {
-        Log.d("Groq API", "Processing response: $response")
+    private fun processOpenAiResponse(response: String) {
+        Log.d("OpenAI API", "Processing response: $response")
 
-        // Koristi regularni izraz za pronalaženje prve cifre između 1 i 4
+        // Use regular expression to find the first digit between 1 and 4
         val regex = Regex("[1-4]")
         val match = regex.find(response.trim())
 
-        // Ako je pronađena cifra, koristi je kao answerNumber
+        // If a digit is found, use it as answerNumber
         val answerNumber = match?.value?.toIntOrNull()
 
         if (answerNumber != null) {
@@ -133,14 +137,70 @@ class ScreenshotDetectorService : Service() {
             }
             startService(intent)
         } else {
-            Log.e("Groq API", "Invalid response: $response")
+            Log.e("OpenAI API", "Invalid response: $response")
         }
     }
-
 
     override fun onDestroy() {
         observer?.stopWatching()
         executor.shutdown()
         super.onDestroy()
+    }
+}
+
+class OpenAiApiClient(private val apiKey: String) {
+    private val client = OkHttpClient()
+
+    fun sendPrompt(prompt: String, callback: (String?) -> Unit) {
+        val json = JSONObject()
+        json.put("model", "gpt-3.5-turbo")
+        val messages = JSONArray()
+        val message = JSONObject()
+        message.put("role", "user")
+        message.put("content", prompt)
+        messages.put(message)
+        json.put("messages", messages)
+
+        val requestBody = json.toString().toRequestBody("application/json".toMediaType())
+
+        val request = Request.Builder()
+            .url("https://api.openai.com/v1/chat/completions")
+            .addHeader("Authorization", "Bearer $apiKey")
+            .post(requestBody)
+            .build()
+
+        Log.d("OpenAiApiClient", "Sending request to OpenAI API")
+        Log.d("OpenAiApiClient", "Request body: $json")
+
+        client.newCall(request).enqueue(object : Callback {
+            override fun onFailure(call: Call, e: IOException) {
+                Log.e("OpenAiApiClient", "Request failed", e)
+                callback(null)
+            }
+
+            override fun onResponse(call: Call, response: Response) {
+                val responseBody = response.body?.string()
+                Log.d("OpenAiApiClient", "Received response. Status: ${response.code}")
+                Log.d("OpenAiApiClient", "Response body: $responseBody")
+
+                if (response.isSuccessful && responseBody != null) {
+                    try {
+                        val jsonResponse = JSONObject(responseBody)
+                        val content = jsonResponse.getJSONArray("choices")
+                            .getJSONObject(0)
+                            .getJSONObject("message")
+                            .getString("content")
+                        Log.d("OpenAiApiClient", "Extracted content: $content")
+                        callback(content)
+                    } catch (e: Exception) {
+                        Log.e("OpenAiApiClient", "Error parsing JSON response", e)
+                        callback(null)
+                    }
+                } else {
+                    Log.e("OpenAiApiClient", "Unsuccessful response: ${response.code}")
+                    callback(null)
+                }
+            }
+        })
     }
 }

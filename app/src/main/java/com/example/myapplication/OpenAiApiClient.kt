@@ -6,12 +6,12 @@ import org.json.JSONObject
 import org.json.JSONArray
 import java.io.IOException
 
-class GroqApiClient(private val apiKey: String) {
+class OpenAiApiClient(private val apiKey: String) {
     private val client = OkHttpClient()
 
     fun sendPrompt(prompt: String, callback: (String?) -> Unit) {
         val json = JSONObject()
-        json.put("model", "llama3-70b-8192")
+        json.put("model", "gpt-3.5-turbo")
         val messages = JSONArray()
         val message = JSONObject()
         message.put("role", "user")
@@ -22,40 +22,39 @@ class GroqApiClient(private val apiKey: String) {
         val requestBody = json.toString().toRequestBody("application/json".toMediaType())
 
         val request = Request.Builder()
-            .url("https://api.groq.com/openai/v1/chat/completions")
+            .url("https://api.openai.com/v1/chat/completions")
             .addHeader("Authorization", "Bearer $apiKey")
             .post(requestBody)
             .build()
 
-        Log.d("GroqApiClient", "Sending request to Groq API")
-        Log.d("GroqApiClient", "Request body: $json")
+        Log.d("OpenAiApiClient", "Sending request to OpenAI API")
+        Log.d("OpenAiApiClient", "Request body: $json")
 
         client.newCall(request).enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {
-                Log.e("GroqApiClient", "Request failed", e)
+                Log.e("OpenAiApiClient", "Request failed", e)
                 callback(null)
             }
 
             override fun onResponse(call: Call, response: Response) {
                 val responseBody = response.body?.string()
-                Log.d("GroqApiClient", "Received response. Status: ${response.code}")
-                Log.d("GroqApiClient", "Response body: $responseBody")
+                Log.d("OpenAiApiClient", "Received response. Status: ${response.code}")
+                Log.d("OpenAiApiClient", "Response body: $responseBody")
 
                 if (response.isSuccessful && responseBody != null) {
                     try {
                         val jsonResponse = JSONObject(responseBody)
                         val content = jsonResponse.getJSONArray("choices")
                             .getJSONObject(0)
-                            .getJSONObject("message")
-                            .getString("content")
-                        Log.d("GroqApiClient", "Extracted content: $content")
+                            .getString("text")
+                        Log.d("OpenAiApiClient", "Extracted content: $content")
                         callback(content)
                     } catch (e: Exception) {
-                        Log.e("GroqApiClient", "Error parsing JSON response", e)
+                        Log.e("OpenAiApiClient", "Error parsing JSON response", e)
                         callback(null)
                     }
                 } else {
-                    Log.e("GroqApiClient", "Unsuccessful response: ${response.code}")
+                    Log.e("OpenAiApiClient", "Unsuccessful response: ${response.code}")
                     callback(null)
                 }
             }
