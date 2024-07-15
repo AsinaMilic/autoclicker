@@ -1,6 +1,7 @@
 package com.example.myapplication
 
 import GroqApiClient
+import OverlayView
 import android.app.Service
 import android.content.Context
 import android.content.Intent
@@ -8,8 +9,11 @@ import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.os.FileObserver
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
 import android.util.Log
+import android.widget.Toast
 import androidx.annotation.RequiresApi
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
@@ -24,12 +28,14 @@ import java.util.concurrent.TimeUnit
 class ScreenshotDetectorService : Service() {
     private var observer: FileObserver? = null
     private val executor = Executors.newSingleThreadScheduledExecutor()
+    private lateinit var overlayView: OverlayView
 
     override fun onBind(intent: Intent): IBinder? = null
 
     override fun onCreate() {
         super.onCreate()
         startScreenshotObserver()
+        overlayView = OverlayView(applicationContext)
     }
 
     private fun startScreenshotObserver() {
@@ -89,11 +95,12 @@ class ScreenshotDetectorService : Service() {
                             "${index + 1}) ${answer.trim()}"
                         }
                         val formattedText = ("Kviz ima jedno pitanje i 4 odgovora, ignorisi sve ostalo sto mislis da nije pitanje i moguci odgovor. Pitanje: " +
-                                "$question ${formattedAnswers.joinToString("\n")}     Odgovori samo brojkom tačnog odgovora!")
+                                "$question ${formattedAnswers.joinToString("\n")}     Odgovori samo brojkom tačnog odgovora! Ako nemaju ponudjeni ogovori, odgovori na pitanje svojim kratkim odgovorom!")
                             .replace("\n", " ").replace("mts", "").replace("do kraja", "")
                             .replace("Ne odgovaraj odmah, sačekajte da se odgovori uokvire belom bojom odnosno postanu aktivni.", "")
 
                         Log.d("OCR", "Formatted Text: $formattedText")
+
 
                         CoroutineScope(Dispatchers.IO).launch {
                             val apiKey = "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"
@@ -119,6 +126,7 @@ class ScreenshotDetectorService : Service() {
 
     private fun processGroqResponse(response: String) {
         Log.d("Groq API", "Processing response: $response")
+        overlayView.show(response)
 
         // Koristi regularni izraz za pronalaženje prve cifre između 1 i 4
         val regex = Regex("[1-4]")
