@@ -3,17 +3,13 @@ package com.example.myapplication
 import GroqApiClient
 import OverlayView
 import android.app.Service
-import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.os.FileObserver
-import android.os.Handler
 import android.os.IBinder
-import android.os.Looper
 import android.util.Log
-import android.widget.Toast
 import androidx.annotation.RequiresApi
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
@@ -21,6 +17,9 @@ import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import org.json.JSONObject
 import java.io.File
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
@@ -29,6 +28,10 @@ class ScreenshotDetectorService : Service() {
     private var observer: FileObserver? = null
     private val executor = Executors.newSingleThreadScheduledExecutor()
     private lateinit var overlayView: OverlayView
+    private val client = OkHttpClient()
+
+    // Add your SerpApi key here
+    private val serpApiKey = "669e533fae938a28cad10d6e7ba452aa21ea985689e4fc864fea670d16e15bce"
 
     override fun onBind(intent: Intent): IBinder? = null
 
@@ -45,13 +48,10 @@ class ScreenshotDetectorService : Service() {
         object : FileObserver(screenshotsDir, FileObserver.CREATE) {
             override fun onEvent(event: Int, path: String?) {
                 if (event == FileObserver.CREATE && path != null) {
-                    // Remove the `.pending-` prefix if it exists
                     val cleanedPath = path.substringAfter("-").substringAfter("-")
                     Log.d("ScreenshotDetectorService", "Detected file: $cleanedPath")
 
                     if (cleanedPath.startsWith("Screenshot_")) {
-                        println(screenshotsDir)
-                        println(cleanedPath)
                         val filePath = File(screenshotsDir, cleanedPath)
                         executor.schedule({
                             processScreenshotWithRetry(filePath, 0)
@@ -94,15 +94,19 @@ class ScreenshotDetectorService : Service() {
                         val formattedAnswers = answers.mapIndexed { index, answer ->
                             "${index + 1}) ${answer.trim()}"
                         }
-                        val formattedText = ("Kviz ima jedno pitanje i 4 odgovora, ignorisi sve ostalo sto mislis da nije pitanje i moguci odgovor. Pitanje: " +
-                                "$question ${formattedAnswers.joinToString("\n")}     Odgovori samo brojkom tačnog odgovora! Ako nemaju ponudjeni ogovori, odgovori na pitanje svojim kratkim odgovorom!")
-                            .replace("\n", " ").replace("mts", "").replace("do kraja", "")
-                            .replace("Ne odgovaraj odmah, sačekajte da se odgovori uokvire belom bojom odnosno postanu aktivni.", "")
-
-                        Log.d("OCR", "Formatted Text: $formattedText")
-
 
                         CoroutineScope(Dispatchers.IO).launch {
+                            val searchResults = performInternetSearch(question + answers)
+                            val formattedText = ("Kviz ima jedno pitanje i 4 odgovora. Pitanje: " +
+                                    "$question ${formattedAnswers.joinToString("\n")}     Odgovori samo brojkom tačnog odgovora! Ako nemaju ponudjeni ogovori, odgovori na pitanje svojim kratkim odgovorom! " +
+                                    "Dodatne informacije iz internet pretrage: $searchResults")
+                                .replace("\n", " ").replace("mts", "").replace("do kraja", "")
+                                .replace("Ne odgovaraj odmah, sačekajte da se odgovori uokvire belom bojom odnosno postanu aktivni.", "")
+                                .replace("stotine", "")
+                                .replace("hiljade","")
+
+                            Log.d("OCR", "Formatted Text with Search Results: $formattedText")
+
                             val apiKey = "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"
                             val groqApiClient = GroqApiClient(apiKey)
                             groqApiClient.sendPrompt(formattedText) { result ->
@@ -124,15 +128,42 @@ class ScreenshotDetectorService : Service() {
         }
     }
 
+    private fun performInternetSearch(query: String): String {
+        val encodedQuery = Uri.encode(query)
+        val url = "https://serpapi.com/search.json?engine=bing&q=$encodedQuery&api_key=$serpApiKey"
+
+        val request = Request.Builder()
+            .url(url)
+            .build()
+
+        return try {
+            val response = client.newCall(request).execute()
+            val responseBody = response.body?.string()
+            if (response.isSuccessful && responseBody != null) {
+                val jsonResponse = JSONObject(responseBody)
+                val organicResults = jsonResponse.getJSONArray("organic_results")
+                val snippets = mutableListOf<String>()
+                for (i in 0 until minOf(3, organicResults.length())) {
+                    val result = organicResults.getJSONObject(i)
+                    snippets.add(result.getString("snippet"))
+                }
+                snippets.joinToString(" ")
+            } else {
+                "No relevant information found."
+            }
+        } catch (e: Exception) {
+            Log.e("InternetSearch", "Error performing search: ${e.message}")
+            "Error performing internet search."
+        }
+    }
+
     private fun processGroqResponse(response: String) {
         Log.d("Groq API", "Processing response: $response")
         overlayView.show(response)
 
-        // Use a regular expression to find the first digit between 1 and 4
         val regex = Regex("[1-4]")
         val match = regex.find(response.trim())
 
-        // If a digit is found, use it as answerNumber
         val answerNumber = match?.value?.toIntOrNull()
 
         if (answerNumber != null) {
@@ -145,7 +176,6 @@ class ScreenshotDetectorService : Service() {
             Log.e("Groq API", "Invalid response: $response")
         }
     }
-
 
     override fun onDestroy() {
         observer?.stopWatching()
