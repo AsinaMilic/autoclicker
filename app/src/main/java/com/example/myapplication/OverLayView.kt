@@ -1,4 +1,3 @@
-// OverlayView.kt
 import android.content.Context
 import android.graphics.PixelFormat
 import android.os.Handler

@@ -1,4 +1,3 @@
-// AutoClickerService.kt
 package com.example.myapplication
 
 import android.app.Service
@@ -10,7 +9,6 @@ import android.app.NotificationManager
 import android.content.Context
 import android.os.Build
 import androidx.core.app.NotificationCompat
-//import android.app.ServiceInfo // Add this import
 import android.content.pm.ServiceInfo
 
 class AutoClickerService : Service() {
@@ -23,7 +21,7 @@ class AutoClickerService : Service() {
     override fun onCreate() {
         super.onCreate()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            startForeground(NOTIFICATION_ID, createNotification(), ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION)
+            startForeground(NOTIFICATION_ID, createNotification(), ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
         } else {
             startForeground(NOTIFICATION_ID, createNotification())
         }

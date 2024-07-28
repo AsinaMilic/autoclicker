@@ -23,13 +23,15 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 
+import android.Manifest
+
 class MainActivity : AppCompatActivity() {
 
     private var isRunning = false
     private val OVERLAY_PERMISSION_REQUEST_CODE = 2
+    private val REQUEST_FOREGROUND_SERVICE_PERMISSION = 123
     private var clickIndicatorView: View? = null
 
-    @RequiresApi(Build.VERSION_CODES.TIRAMISU)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
@@ -38,19 +40,39 @@ class MainActivity : AppCompatActivity() {
 
         val startButton = findViewById<Button>(R.id.start_button)
         startButton.setOnClickListener {
-            if (!Settings.canDrawOverlays(this)) {
-                requestOverlayPermission()
-            } else if (!isAccessibilityServiceEnabled()) {
-                requestAccessibilityPermission()
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.FOREGROUND_SERVICE_SPECIAL_USE) != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.FOREGROUND_SERVICE_SPECIAL_USE), REQUEST_FOREGROUND_SERVICE_PERMISSION)
             } else {
+                startAutoClickerService()
                 toggleAutoClicker()
             }
         }
 
-        isRunning = isServiceRunning(AutoClickerService::class.java)
+        requestOverlayPermission()
+        requestAccessibilityPermission()
+        isAccessibilityServiceEnabled()
         updateButtonText()
         requestStoragePermission()
         requestManageExternalStoragePermission()
+        isRunning = isServiceRunning(AutoClickerService::class.java)
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == REQUEST_FOREGROUND_SERVICE_PERMISSION) {
+            if ((grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED)) {
+                startAutoClickerService()
+            } else {
+                Toast.makeText(this, "Permission required to start the service", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    private fun startAutoClickerService() {
+        val intent = Intent(this, AutoClickerService::class.java).apply {
+            action = "START"
+        }
+        startForegroundService(intent)
     }
 
     private fun toggleAutoClicker() {

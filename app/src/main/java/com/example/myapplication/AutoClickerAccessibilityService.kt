@@ -60,24 +60,23 @@ class AutoClickerAccessibilityService : AccessibilityService() {
         val displayMetrics = resources.displayMetrics
         val screenHeight = displayMetrics.heightPixels.toFloat()
 
-        // Početak prvog dugmeta
-        val startYPercentage = 0.6f // Y koordinata prvog dugmeta kao 55% visine ekrana
+        // Start of the first button
+        val startYPercentage = 0.6f // Y coordinate of the first button as 55% of the screen height
         val startY = screenHeight * startYPercentage
 
-        // Razmak između dugmadi
-        val yOffsetPercentage = 0.1f // Razmak između dugmadi kao 5% visine ekrana
+        // Space between buttons
+        val yOffsetPercentage = 0.1f // Space between buttons as 5% of the screen height
         val yOffset = screenHeight * yOffsetPercentage
 
-        // Klik na odgovarajuću y-koordinatu na osnovu answerNumber
+        // Click on the appropriate y-coordinate based on answerNumber
         val y = startY + (answerNumber - 1) * yOffset
 
-        // X koordinata može biti u sredini ekrana ili gde je potrebno
+        // X coordinate can be in the middle of the screen or where needed
         val x = displayMetrics.widthPixels.toFloat() / 2
 
         Log.d("AutoClickerService", "Calculated click position: x=$x, y=$y")
         return Pair(x, y)
     }
-
 
     private fun performClickAt(x: Float, y: Float, answerNumber: Int) {
         val path = Path().apply {
@@ -119,13 +118,13 @@ class AutoClickerAccessibilityService : AccessibilityService() {
 
     private fun showClickIndicator(x: Float, y: Float) {
         Log.d("AutoClickerService", "Showing click indicator at x=$x, y=$y")
-        // Prikaz indikatora klika
+        // Show the click indicator
         clickIndicatorView.visibility = View.VISIBLE
 
         clickIndicatorView.post {
             val params = clickIndicatorView.layoutParams as WindowManager.LayoutParams
 
-            // Postavi indikator tačno na tačke (x, y)
+            // Set the indicator exactly at the points (x, y)
             params.x = x.toInt()
             params.y = y.toInt()
 
@@ -133,7 +132,7 @@ class AutoClickerAccessibilityService : AccessibilityService() {
 
             windowManager.updateViewLayout(clickIndicatorView, params)
 
-            // Sakrij indikator nakon kratkog vremena
+            // Hide the indicator after a short time
             handler.postDelayed({
                 clickIndicatorView.visibility = View.GONE
                 Log.d("AutoClickerService", "Click indicator hidden")
@@ -141,14 +140,15 @@ class AutoClickerAccessibilityService : AccessibilityService() {
         }
     }
 
-
-
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        // Not used in this implementation
+        // Implement this method to handle accessibility events
+        // For example, you can log the event type
+        Log.d("AutoClickerService", "Accessibility event received: ${event?.eventType}")
     }
 
     override fun onInterrupt() {
-        // Not used in this implementation
+        // Implement this method to handle service interruption
+        Log.d("AutoClickerService", "Service interrupted")
     }
 
     override fun onDestroy() {

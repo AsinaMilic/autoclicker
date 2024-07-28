@@ -45,7 +45,7 @@ class ScreenshotDetectorService : Service() {
         object : FileObserver(screenshotsDir, FileObserver.CREATE) {
             override fun onEvent(event: Int, path: String?) {
                 if (event == FileObserver.CREATE && path != null) {
-                    // Uklanjanje `.pending-` prefiksa ako postoji
+                    // Remove the `.pending-` prefix if it exists
                     val cleanedPath = path.substringAfter("-").substringAfter("-")
                     Log.d("ScreenshotDetectorService", "Detected file: $cleanedPath")
 
@@ -128,11 +128,11 @@ class ScreenshotDetectorService : Service() {
         Log.d("Groq API", "Processing response: $response")
         overlayView.show(response)
 
-        // Koristi regularni izraz za pronalaženje prve cifre između 1 i 4
+        // Use a regular expression to find the first digit between 1 and 4
         val regex = Regex("[1-4]")
         val match = regex.find(response.trim())
 
-        // Ako je pronađena cifra, koristi je kao answerNumber
+        // If a digit is found, use it as answerNumber
         val answerNumber = match?.value?.toIntOrNull()
 
         if (answerNumber != null) {
