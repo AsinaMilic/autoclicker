@@ -79,4 +79,10 @@ dependencies {
     //implementation(libs.tess.two)
     implementation(libs.text.recognition)
     //implementation("cz.adaptech.tesseract4android:tesseract4android:4.7.0")
+    
+    //implementation 'org.jsoup:jsoup:1.11.1'
+    implementation(libs.jsoup)
+
+    //implementation "com.squareup.okhttp3:okhttp:4.9.0"
+    implementation(libs.okhttp.v490)
 }

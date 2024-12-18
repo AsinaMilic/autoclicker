@@ -1,41 +1,43 @@
 package com.example.myapplication
 
-import GroqApiClient
-import OverlayView
 import android.app.Service
-import android.content.Context
 import android.content.Intent
-import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.os.FileObserver
-import android.os.Handler
 import android.os.IBinder
-import android.os.Looper
 import android.util.Log
-import android.widget.Toast
 import androidx.annotation.RequiresApi
-import com.google.mlkit.vision.common.InputImage
-import com.google.mlkit.vision.text.TextRecognition
-import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.MultipartBody
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.asRequestBody
 import java.io.File
+import java.net.Inet4Address
+import java.net.NetworkInterface
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 
 class ScreenshotDetectorService : Service() {
     private var observer: FileObserver? = null
     private val executor = Executors.newSingleThreadScheduledExecutor()
-    private lateinit var overlayView: OverlayView
+    private val client = OkHttpClient.Builder()
+        .connectTimeout(30, TimeUnit.SECONDS)
+        .writeTimeout(30, TimeUnit.SECONDS)
+        .readTimeout(30, TimeUnit.SECONDS)
+        .retryOnConnectionFailure(true)  // Add this line
+        .build()
+    private val API_URL = "http://192.168.100.75:8000/process_screenshot"
 
     override fun onBind(intent: Intent): IBinder? = null
 
     override fun onCreate() {
         super.onCreate()
         startScreenshotObserver()
-        overlayView = OverlayView(applicationContext)
     }
 
     private fun startScreenshotObserver() {
@@ -45,13 +47,10 @@ class ScreenshotDetectorService : Service() {
         object : FileObserver(screenshotsDir, FileObserver.CREATE) {
             override fun onEvent(event: Int, path: String?) {
                 if (event == FileObserver.CREATE && path != null) {
-                    // Remove the `.pending-` prefix if it exists
                     val cleanedPath = path.substringAfter("-").substringAfter("-")
                     Log.d("ScreenshotDetectorService", "Detected file: $cleanedPath")
 
                     if (cleanedPath.startsWith("Screenshot_")) {
-                        println(screenshotsDir)
-                        println(cleanedPath)
                         val filePath = File(screenshotsDir, cleanedPath)
                         executor.schedule({
                             processScreenshotWithRetry(filePath, 0)
@@ -70,7 +69,7 @@ class ScreenshotDetectorService : Service() {
         }
 
         if (file.exists() && file.canRead()) {
-            processScreenshot(file)
+            sendScreenshotToApi(file)
         } else {
             executor.schedule({
                 processScreenshotWithRetry(file, retryCount + 1)
@@ -78,74 +77,80 @@ class ScreenshotDetectorService : Service() {
         }
     }
 
-    private fun processScreenshot(file: File) {
-        val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
-        try {
-            val image = InputImage.fromFilePath(applicationContext, Uri.fromFile(file))
-            recognizer.process(image)
-                .addOnSuccessListener { visionText ->
-                    var extractedText = visionText.text
-                    Log.d("OCR", "Extracted Text: $extractedText")
-                    extractedText = extractedText.replace(Regex("^\\d+\\.\\d{2}\\s*"), "")
-                    val parts = extractedText.split(Regex("[?:]"), 2)
-                    if (parts.size == 2) {
-                        val question = parts[0].trim() + "?"
-                        val answers = parts[1].trim().split("\n")
-                        val formattedAnswers = answers.mapIndexed { index, answer ->
-                            "${index + 1}) ${answer.trim()}"
-                        }
-                        val formattedText = ("Kviz ima jedno pitanje i 4 odgovora, ignorisi sve ostalo sto mislis da nije pitanje i moguci odgovor. Pitanje: " +
-                                "$question ${formattedAnswers.joinToString("\n")}     Odgovori samo brojkom tačnog odgovora! Ako nemaju ponudjeni ogovori, odgovori na pitanje svojim kratkim odgovorom!")
-                            .replace("\n", " ").replace("mts", "").replace("do kraja", "")
-                            .replace("Ne odgovaraj odmah, sačekajte da se odgovori uokvire belom bojom odnosno postanu aktivni.", "")
+    private fun sendScreenshotToApi(file: File) {
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                Log.d("API", "Attempting to send screenshot to $API_URL")
+                Log.d("API", "File size: ${file.length()} bytes")
+                Log.d("API", "Device IP: ${getLocalIpAddress()}")  // Add this line
 
-                        Log.d("OCR", "Formatted Text: $formattedText")
+                val requestBody = MultipartBody.Builder()
+                    .setType(MultipartBody.FORM)
+                    .addFormDataPart(
+                        "file",
+                        file.name,
+                        file.asRequestBody("image/*".toMediaTypeOrNull())
+                    )
+                    .build()
 
+                val request = Request.Builder()
+                    .url(API_URL)
+                    .post(requestBody)
+                    .build()
 
-                        CoroutineScope(Dispatchers.IO).launch {
-                            val apiKey = "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"
-                            val groqApiClient = GroqApiClient(apiKey)
-                            groqApiClient.sendPrompt(formattedText) { result ->
-                                result?.let {
-                                    Log.d("Groq API", "Response: $it")
-                                    processGroqResponse(it)
-                                } ?: Log.e("Groq API", "Neuspjelo dobivanje odgovora od Groq API-ja")
-                            }
-                        }
+                Log.d("API", "Sending request...")
+                client.newCall(request).execute().use { response ->
+                    if (response.isSuccessful) {
+                        val answer = response.body?.string()
+                        Log.d("API Response", "Success! Response: $answer")
+                        answer?.let { processApiResponse(it) }
                     } else {
-                        Log.e("OCR", "Neočekivani format teksta")
+                        Log.e("API Error", "Response not successful: ${response.code}")
+                        Log.e("API Error", "Response body: ${response.body?.string()}")
                     }
                 }
-                .addOnFailureListener { e ->
-                    Log.e("OCR", "Error: ${e.message}")
-                }
-        } catch (e: Exception) {
-            Log.e("ScreenshotDetectorService", "Error processing screenshot: ${e.message}")
+            } catch (e: Exception) {
+                Log.e("API Error", "Error sending screenshot", e)
+                e.printStackTrace()
+            }
         }
     }
 
-    private fun processGroqResponse(response: String) {
-        Log.d("Groq API", "Processing response: $response")
-        overlayView.show(response)
+    // Add this helper function to get the device's IP address
+    private fun getLocalIpAddress(): String {
+        try {
+            val en = NetworkInterface.getNetworkInterfaces()
+            while (en.hasMoreElements()) {
+                val intf = en.nextElement()
+                val enumIpAddr = intf.inetAddresses
+                while (enumIpAddr.hasMoreElements()) {
+                    val inetAddress = enumIpAddr.nextElement()
+                    if (!inetAddress.isLoopbackAddress && inetAddress is Inet4Address) {
+                        return inetAddress.hostAddress.toString()
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("API", "Error getting IP address", e)
+        }
+        return "Unknown"
+    }
 
-        // Use a regular expression to find the first digit between 1 and 4
-        val regex = Regex("[1-4]")
-        val match = regex.find(response.trim())
 
-        // If a digit is found, use it as answerNumber
-        val answerNumber = match?.value?.toIntOrNull()
+    private fun processApiResponse(response: String) {
+        // Extract the answer number from the API response
+        val answerNumber = response.trim().toIntOrNull()
 
-        if (answerNumber != null) {
+        if (answerNumber != null && answerNumber in 1..4) {
             val intent = Intent(this, AutoClickerAccessibilityService::class.java).apply {
                 action = "PERFORM_CLICK"
                 putExtra("ANSWER_NUMBER", answerNumber)
             }
             startService(intent)
         } else {
-            Log.e("Groq API", "Invalid response: $response")
+            Log.e("API Response", "Invalid answer number: $response")
         }
     }
-
 
     override fun onDestroy() {
         observer?.stopWatching()

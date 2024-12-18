@@ -30,13 +30,11 @@ class MainActivity : AppCompatActivity() {
     private var isRunning = false
     private val OVERLAY_PERMISSION_REQUEST_CODE = 2
     private val REQUEST_FOREGROUND_SERVICE_PERMISSION = 123
-    private var clickIndicatorView: View? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        registerReceiver(clickIndicatorReceiver, IntentFilter("SHOW_CLICK_INDICATOR"), Context.RECEIVER_NOT_EXPORTED)
 
         val startButton = findViewById<Button>(R.id.start_button)
         startButton.setOnClickListener {
@@ -105,52 +103,13 @@ class MainActivity : AppCompatActivity() {
         findViewById<Button>(R.id.start_button).text = if (isRunning) "Stop Auto-clicker" else "Start Auto-clicker"
     }
 
-    private val clickIndicatorReceiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context?, intent: Intent?) {
-            if (intent?.action == "SHOW_CLICK_INDICATOR") {
-                val x = intent.getFloatExtra("CLICK_X", 0f)
-                val y = intent.getFloatExtra("CLICK_Y", 0f)
-                showClickIndicatorOnScreen(x, y)
-            }
-        }
-    }
-
-    private fun showClickIndicatorOnScreen(x: Float, y: Float) {
-        if (clickIndicatorView == null) {
-            clickIndicatorView = View(this).apply {
-                setBackgroundResource(R.drawable.click_indicator)
-            }
-        }
-
-        val size = 48 // Size of the indicator in pixels
-        val params = WindowManager.LayoutParams(
-            size,
-            size,
-            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                    WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
-            PixelFormat.TRANSLUCENT
-        )
-        params.x = (x - size / 2).toInt()
-        params.y = (y - size / 2).toInt()
-
-        val windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
-        windowManager.addView(clickIndicatorView, params)
-
-        // Remove the indicator after a short time
-        Handler(Looper.getMainLooper()).postDelayed({
-            windowManager.removeView(clickIndicatorView)
-        }, 300) // 300ms = 0.3 seconds
-    }
 
     private fun requestManageExternalStoragePermission() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            if (!Environment.isExternalStorageManager()) {
-                val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION)
-                val uri = Uri.fromParts("package", packageName, null)
-                intent.data = uri
-                startActivity(intent)
-            }
+        if (!Environment.isExternalStorageManager()) {
+            val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION)
+            val uri = Uri.fromParts("package", packageName, null)
+            intent.data = uri
+            startActivity(intent)
         }
     }
 
@@ -181,9 +140,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun requestStoragePermission() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            ActivityCompat.requestPermissions(this, arrayOf(android.Manifest.permission.READ_EXTERNAL_STORAGE), 100)
-        }
+        ActivityCompat.requestPermissions(this, arrayOf(android.Manifest.permission.READ_EXTERNAL_STORAGE), 100)
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
@@ -199,6 +156,5 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        unregisterReceiver(clickIndicatorReceiver)
     }
 }

@@ -19,13 +19,11 @@ class AutoClickerAccessibilityService : AccessibilityService() {
 
     private lateinit var windowManager: WindowManager
     private lateinit var clickIndicatorView: View
-    private val handler = Handler(Looper.getMainLooper())
 
     override fun onServiceConnected() {
         super.onServiceConnected()
         Log.d("AutoClickerService", "Service connected")
         windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
-        setupClickIndicator()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -39,21 +37,6 @@ class AutoClickerAccessibilityService : AccessibilityService() {
             }
         }
         return START_NOT_STICKY
-    }
-
-    private fun setupClickIndicator() {
-        val inflater = getSystemService(Context.LAYOUT_INFLATER_SERVICE) as LayoutInflater
-        clickIndicatorView = inflater.inflate(R.layout.click_indicator, null)
-
-        val params = WindowManager.LayoutParams(
-            WindowManager.LayoutParams.WRAP_CONTENT,
-            WindowManager.LayoutParams.WRAP_CONTENT,
-            WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
-            android.graphics.PixelFormat.TRANSLUCENT
-        )
-        windowManager.addView(clickIndicatorView, params)
-        clickIndicatorView.visibility = View.GONE
     }
 
     private fun calculateClickPosition(answerNumber: Int): Pair<Float, Float> {
@@ -91,8 +74,6 @@ class AutoClickerAccessibilityService : AccessibilityService() {
         dispatchGesture(gesture, object : GestureResultCallback() {
             override fun onCompleted(gestureDescription: GestureDescription?) {
                 Log.d("AutoClickerService", "Click performed at x=$x, y=$y")
-                showClickIndicator(x, y)
-                vibrateForAnswer(answerNumber)
             }
 
             override fun onCancelled(gestureDescription: GestureDescription?) {
@@ -101,44 +82,6 @@ class AutoClickerAccessibilityService : AccessibilityService() {
         }, null)
     }
 
-    private fun vibrateForAnswer(answerNumber: Int) {
-        val vibrator = getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
-        if (vibrator.hasVibrator()) {
-            val vibrationDuration = 200L // Duration of each vibration in milliseconds
-            val pauseDuration = 200L // Duration of pause between vibrations
-
-            val pattern = LongArray(answerNumber * 2) { index ->
-                if (index % 2 == 0) vibrationDuration else pauseDuration
-            }
-
-            val vibrationEffect = VibrationEffect.createWaveform(pattern, -1) // -1 means don't repeat
-            vibrator.vibrate(vibrationEffect)
-        }
-    }
-
-    private fun showClickIndicator(x: Float, y: Float) {
-        Log.d("AutoClickerService", "Showing click indicator at x=$x, y=$y")
-        // Show the click indicator
-        clickIndicatorView.visibility = View.VISIBLE
-
-        clickIndicatorView.post {
-            val params = clickIndicatorView.layoutParams as WindowManager.LayoutParams
-
-            // Set the indicator exactly at the points (x, y)
-            params.x = x.toInt()
-            params.y = y.toInt()
-
-            Log.d("AutoClickerService", "Updated clickIndicatorView position: x=${params.x}, y=${params.y}")
-
-            windowManager.updateViewLayout(clickIndicatorView, params)
-
-            // Hide the indicator after a short time
-            handler.postDelayed({
-                clickIndicatorView.visibility = View.GONE
-                Log.d("AutoClickerService", "Click indicator hidden")
-            }, 3000) // 300ms = 0.3 seconds
-        }
-    }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         // Implement this method to handle accessibility events
